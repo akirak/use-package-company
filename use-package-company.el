@@ -40,45 +40,43 @@
       (use-package-normalize-pairs
        (lambda (k)
          (or (use-package-non-nil-symbolp k)
-            (and (consp k)
-               (not (cdr (last k)))
-               (seq-every-p 'use-package-non-nil-symbolp k))))
+             (and (consp k)
+                  (not (cdr (last k)))
+                  (seq-every-p 'use-package-non-nil-symbolp k))))
        #'use-package-recognize-function
        name label arg))))
 
 ;;;###autoload
 (defun use-package-company-handler (name _keyword args rest state)
-  "Generate a function and hook from each pair in NAME ARGS for the keyword with NAME :company, appending the forms to the ‘use-package’ declaration specified by REST and STATE."
+  "`use-package-handler' for :company keyword.
+
+Generate a function and hook from each pair in NAME ARGS for
+the keyword with NAME :company, appending the forms to the
+‘use-package’ declaration specified by REST and STATE."
   (use-package-concat
    (use-package-process-keywords name rest state)
    (mapcan
-    (lambda (def)
-      (let ((modes (car def))
-            (backend (cdr def))
-            (fun (intern (concat "use-package-company-add-" (symbol-name (cdr def))))))
-        (when backend
-          (append
-           `((defun ,fun ()
-	       (setq-local 'company-backends
-			   (append 'company-backends '(,backend)))))
-           (mapcar
-            (lambda (mode)
-              `(add-hook
-                ',(derived-mode-hook-name mode)
-                #',fun))
-            (if (use-package-non-nil-symbolp modes) (list modes) modes))))))
+    (pcase-lambda ((and `(,modes . ,backend)
+                        (guard (use-package-non-nil-symbolp backend))))
+      (let ((activate-func (intern (concat "company-add-backend/" (symbol-name backend))))
+            (modes (if (use-package-non-nil-symbolp modes) (list modes) modes)))
+        (cons `(defun ,activate-func ()
+                 (add-to-list #',backend (make-local-variable 'company-backends)))
+              (mapcar
+               #'(lambda (mode)
+                   `(add-hook (derived-mode-hook-name (quote ,mode))
+                              (quote ,activate-func)
+                              t))
+               modes))))
     (use-package-normalize-commands args))))
 
-(defalias 'use-package-normalize/:company 'use-package-company-normalize)
-(defalias 'use-package-handler/:company 'use-package-company-handler)
-(defalias 'use-package-autoloads/:company 'use-package-autoloads-mode)
+(fset 'use-package-normalize/:company 'use-package-company-normalize)
+(fset 'use-package-handler/:company 'use-package-company-handler)
+(fset 'use-package-autoloads/:company 'use-package-autoloads-mode)
 
-(setq use-package-keywords
-      (let ((idx (+ 1 (cl-position :hook use-package-keywords))))
-	(append
-	 (seq-subseq use-package-keywords 0 idx)
-	 (list :company)
-	 (nthcdr idx use-package-keywords))))
+(unless (cl-find :company use-package-keywords)
+  (let ((cell (member :hook use-package-keywords)))
+    (setcdr cell (cons :company (copy-sequence cell)))))
 
 (provide 'use-package-company)
 ;;; use-package-company.el ends here
