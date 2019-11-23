@@ -61,7 +61,7 @@ the keyword with NAME :company, appending the forms to the
       (let ((activate-func (intern (concat "company-add-backend/" (symbol-name backend))))
             (modes (if (use-package-non-nil-symbolp modes) (list modes) modes)))
         (cons `(defun ,activate-func ()
-                 (add-to-list #',backend (make-local-variable 'company-backends)))
+                 (add-to-list (make-local-variable 'company-backends) #',backend))
               (mapcar
                #'(lambda (mode)
                    `(add-hook (derived-mode-hook-name (quote ,mode))
